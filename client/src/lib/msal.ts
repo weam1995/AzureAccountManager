@@ -53,9 +53,12 @@ export const apiRequest = {
 // Initialize MSAL instance
 export const msalInstance = new PublicClientApplication(msalConfig);
 
-// Ensure redirect handling on page load
-msalInstance.handleRedirectPromise().catch(error => {
-  console.error("Error during redirect handling:", error);
+// Initialize MSAL
+msalInstance.initialize().then(() => {
+  // After initialization, handle any redirect
+  msalInstance.handleRedirectPromise().catch(error => {
+    console.error("Error during redirect handling:", error);
+  });
 });
 
 // Helper functions for MSAL operations

@@ -6,6 +6,7 @@ import {
 } from "@azure/msal-browser";
 import { useMsal, useAccount } from "@azure/msal-react";
 import { apiRequest } from "../lib/msal";
+import { authenticatedFetch } from "../lib/queryClient";
 
 interface RequestConfig {
   url: string;
@@ -65,27 +66,15 @@ export function useFetchWithMsal<T>(
         }
       }
 
-      // Prepare request headers with auth token
-      const headers = {
-        ...requestConfig.headers,
-        Authorization: `Bearer ${authResult.accessToken}`,
-        'Content-Type': 'application/json',
-      };
-
-      // Make the actual API request
-      const response = await fetch(requestConfig.url, {
-        method: requestConfig.method || 'GET',
-        headers,
-        body: requestConfig.body ? JSON.stringify(requestConfig.body) : undefined,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API request failed: ${response.status} - ${errorText}`);
-      }
-
-      const responseData = await response.json();
-      setData(responseData);
+      // Use our utility function to make the authenticated request
+      const responseData = await authenticatedFetch(
+        requestConfig.url,
+        authResult.accessToken,
+        requestConfig.method || 'GET',
+        requestConfig.body
+      );
+      
+      setData(responseData as T);
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
