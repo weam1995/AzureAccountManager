@@ -66,27 +66,13 @@ export default function StandardAccounts() {
     // Implement access management
   };
 
-  // Create specialized hooks for account locking/unlocking
-  const { refetch: executeUnlock } = useFetchWithMsal(
-    null, // Start with null config so it doesn't execute immediately
-    { immediate: false }
-  );
-  
-  const { refetch: executeLock } = useFetchWithMsal(
-    null, // Start with null config so it doesn't execute immediately
-    { immediate: false }
-  );
-
   const handleLockUnlock = async (id: string, isLocked: boolean) => {
     try {
       if (isLocked) {
-        // Pass the request config to refetch
-        await executeUnlock(api.unlockAccount(id));
+        await useFetchWithMsal(api.unlockAccount(id));
       } else {
-        // Pass the request config to refetch
-        await executeLock(api.lockAccount(id));
+        await useFetchWithMsal(api.lockAccount(id));
       }
-      // Refresh the accounts list
       refetch();
     } catch (error) {
       console.error("Error toggling account lock status:", error);

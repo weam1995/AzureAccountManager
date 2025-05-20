@@ -4,32 +4,25 @@ import { useMsalAuthentication } from "@azure/msal-react";
 import { apiRequest } from "../lib/msal";
 import { authenticatedFetch } from "../lib/queryClient";
 
-export interface RequestConfig {
+interface RequestConfig {
   url: string;
   method?: string;
   headers?: Record<string, string>;
   body?: any;
 }
 
-// A function that can create a request configuration, optionally with parameters
-export type RequestConfigFactory<P = void> = 
-  P extends void 
-    ? () => RequestConfig 
-    : (params: P) => RequestConfig;
-
 interface FetchResult<T> {
   data: T | null;
   error: Error | null;
   loading: boolean;
-  refetch: (params?: any) => Promise<void>;
+  refetch: () => Promise<void>;
 }
 
-export function useFetchWithMsal<T, P = void>(
-  requestConfigOrFactory: RequestConfig | RequestConfigFactory<P> | null,
+export function useFetchWithMsal<T>(
+  requestConfig: RequestConfig | null,
   options?: {
     immediate?: boolean; // Whether to fetch data immediately
     dependencies?: any[]; // Dependencies for refetching
-    initialParams?: P; // Initial parameters for the request factory
   }
 ): FetchResult<T> {
   // Use the useMsalAuthentication hook to acquire tokens silently
@@ -41,40 +34,9 @@ export function useFetchWithMsal<T, P = void>(
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [currentParams, setCurrentParams] = useState<P | undefined>(options?.initialParams);
-
-  // Helper to get the current request config
-  const getRequestConfig = useCallback(
-    (params?: P): RequestConfig | null => {
-      if (!requestConfigOrFactory) return null;
-      
-      // If it's a direct RequestConfig object
-      if ('url' in requestConfigOrFactory) {
-        return requestConfigOrFactory;
-      }
-      
-      // It's a factory function - call it with params or currentParams
-      const effectiveParams = params !== undefined ? params : currentParams;
-      
-      // For factories that don't need params (P extends void)
-      if (typeof effectiveParams === 'undefined' && typeof requestConfigOrFactory === 'function') {
-        return (requestConfigOrFactory as any)();
-      }
-      
-      // For factories that need params
-      return (requestConfigOrFactory as any)(effectiveParams);
-    },
-    [requestConfigOrFactory, currentParams]
-  );
 
   // Function to make API request with token
-  const makeRequest = useCallback(async (params?: P) => {
-    // If params are provided, update the current params
-    if (params !== undefined) {
-      setCurrentParams(params);
-    }
-    
-    const requestConfig = getRequestConfig(params);
+  const makeRequest = useCallback(async () => {
     if (!requestConfig || !requestConfig.url) return;
 
     setLoading(true);
@@ -91,11 +53,9 @@ export function useFetchWithMsal<T, P = void>(
       }
 
       // Use our utility function to make the authenticated request
-      // At this point we should have an access token from either result or acquireToken
-      const accessToken = result?.accessToken || '';
       const responseData = await authenticatedFetch(
         requestConfig.url,
-        accessToken,
+        result.accessToken,
         requestConfig.method || 'GET',
         requestConfig.body
       );
@@ -111,20 +71,19 @@ export function useFetchWithMsal<T, P = void>(
     } finally {
       setLoading(false);
     }
-  }, [getRequestConfig, result, authError, acquireToken]);
+  }, [requestConfig, result, authError, acquireToken]);
 
-  // Function to manually trigger a refetch, optionally with new params
-  const refetch = useCallback(async (params?: P) => {
-    await makeRequest(params);
+  // Function to manually trigger a refetch
+  const refetch = useCallback(async () => {
+    await makeRequest();
   }, [makeRequest]);
 
   // Effect to fetch data on mount or when dependencies change
   useEffect(() => {
-    const requestConfig = getRequestConfig();
     if (options?.immediate !== false && requestConfig && result?.accessToken) {
       makeRequest();
     }
-  }, [makeRequest, getRequestConfig, options?.immediate, result, ...(options?.dependencies || [])]);
+  }, [makeRequest, options?.immediate, result, ...(options?.dependencies || [])]);
 
   return { data, error, loading, refetch };
 }
