@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useFetchWithMsal } from "@/hooks/useFetchWithMsal";
 import { api } from "@/lib/api";
+import { protectedResources } from "@/lib/msal";
 import { AccountFilterOptions, Department } from "@/types/account";
 
 interface AccountFilterProps {
@@ -18,7 +19,10 @@ export default function AccountFilter({
   const [department, setDepartment] = useState(filterOptions.department);
   
   // Fetch departments for dropdown
-  const { data: departments } = useFetchWithMsal<Department[]>(api.getDepartments());
+  const { data: departments } = useFetchWithMsal<Department[]>(
+    api.getDepartments(),
+    { scopes: protectedResources.PWMAPI.scopes }
+  );
   
   // Apply filters on input change with debounce for search
   useEffect(() => {

@@ -23,12 +23,13 @@ export function useFetchWithMsal<T>(
   options?: {
     immediate?: boolean; // Whether to fetch data immediately
     dependencies?: any[]; // Dependencies for refetching
+    scopes?: string[]; // Optional scopes for authentication
   }
 ): FetchResult<T> {
   // Use the useMsalAuthentication hook to acquire tokens silently
   const { result, error: authError, acquireToken } = useMsalAuthentication(
     InteractionType.Silent,
-    { scopes: protectedResources.PWMAPI.scopes }
+    { scopes: options?.scopes || protectedResources.PWMAPI.scopes }
   );
   
   const [data, setData] = useState<T | null>(null);

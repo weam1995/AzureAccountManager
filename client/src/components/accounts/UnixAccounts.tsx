@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useFetchWithMsal } from "@/hooks/useFetchWithMsal";
 import { api } from "@/lib/api";
+import { protectedResources } from "@/lib/msal";
 import { 
   PaginatedResponse, 
   UnixAccount, 
@@ -40,7 +41,8 @@ export default function UnixAccounts() {
   } = useFetchWithMsal<PaginatedResponse<UnixAccount>>(
     request, 
     { 
-      dependencies: [currentPage, filterOptions] 
+      dependencies: [currentPage, filterOptions],
+      scopes: protectedResources.PWMAPI.scopes
     }
   );
 
@@ -70,11 +72,15 @@ export default function UnixAccounts() {
     try {
       if (isLocked) {
         const unlockRequest = api.unlockAccount(id);
-        const { error } = await useFetchWithMsal(unlockRequest);
+        const { error } = await useFetchWithMsal(unlockRequest, { 
+          scopes: protectedResources.PWMAPI.scopes 
+        });
         if (error) throw error;
       } else {
         const lockRequest = api.lockAccount(id);
-        const { error } = await useFetchWithMsal(lockRequest);
+        const { error } = await useFetchWithMsal(lockRequest, { 
+          scopes: protectedResources.PWMAPI.scopes 
+        });
         if (error) throw error;
       }
       refetch();
