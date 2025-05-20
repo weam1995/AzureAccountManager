@@ -69,9 +69,13 @@ export default function UnixAccounts() {
   const handleLockUnlock = async (id: string, isLocked: boolean) => {
     try {
       if (isLocked) {
-        await useFetchWithMsal(api.unlockAccount(id));
+        const unlockRequest = api.unlockAccount(id);
+        const { error } = await useFetchWithMsal(unlockRequest);
+        if (error) throw error;
       } else {
-        await useFetchWithMsal(api.lockAccount(id));
+        const lockRequest = api.lockAccount(id);
+        const { error } = await useFetchWithMsal(lockRequest);
+        if (error) throw error;
       }
       refetch();
     } catch (error) {

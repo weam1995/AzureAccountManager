@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { InteractionType } from "@azure/msal-browser";
 import { useMsalAuthentication } from "@azure/msal-react";
-import { apiRequest } from "../lib/msal";
+import { protectedResources } from "../lib/msal";
 import { authenticatedFetch } from "../lib/queryClient";
 
 interface RequestConfig {
@@ -28,7 +28,7 @@ export function useFetchWithMsal<T>(
   // Use the useMsalAuthentication hook to acquire tokens silently
   const { result, error: authError, acquireToken } = useMsalAuthentication(
     InteractionType.Silent,
-    { scopes: apiRequest.scopes }
+    { scopes: protectedResources.PWMAPI.scopes }
   );
   
   const [data, setData] = useState<T | null>(null);
@@ -44,18 +44,23 @@ export function useFetchWithMsal<T>(
 
     try {
       // Check if we have a valid authentication result with an access token
+      let accessToken: string;
+      
       if (!result?.accessToken) {
         // If no token, try to acquire one
         const authResult = await acquireToken();
         if (!authResult?.accessToken) {
           throw new Error("Failed to acquire access token");
         }
+        accessToken = authResult.accessToken;
+      } else {
+        accessToken = result.accessToken;
       }
 
       // Use our utility function to make the authenticated request
       const responseData = await authenticatedFetch(
         requestConfig.url,
-        result.accessToken,
+        accessToken,
         requestConfig.method || 'GET',
         requestConfig.body
       );
@@ -80,10 +85,10 @@ export function useFetchWithMsal<T>(
 
   // Effect to fetch data on mount or when dependencies change
   useEffect(() => {
-    if (options?.immediate !== false && requestConfig && result?.accessToken) {
+    if (options?.immediate !== false && requestConfig) {
       makeRequest();
     }
-  }, [makeRequest, options?.immediate, result, ...(options?.dependencies || [])]);
+  }, [makeRequest, options?.immediate, ...(options?.dependencies || [])]);
 
   return { data, error, loading, refetch };
 }

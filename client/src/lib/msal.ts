@@ -45,9 +45,12 @@ export const loginRequest = {
   scopes: ["User.Read", "profile", "offline_access"]
 };
 
-// API request scopes for user management API
-export const apiRequest = {
-  scopes: [import.meta.env.VITE_MSAL_API_SCOPE || "api://default-scope/access"]
+// Protected resources configuration
+export const protectedResources = {
+  PWMAPI: {
+    endpoint: "https://localhost:3000/api",
+    scopes: [import.meta.env.VITE_MSAL_API_SCOPE || "api://default-scope/access"]
+  }
 };
 
 // Initialize MSAL instance
