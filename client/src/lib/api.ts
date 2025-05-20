@@ -1,4 +1,5 @@
 import { AccountType, StandardAccount, UnixAccount, AccountFilterOptions } from "../types/account";
+import { RequestConfig } from "../hooks/useFetchWithMsal";
 
 // Base URL for ASP.NET Core C# API endpoints
 const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
@@ -25,47 +26,49 @@ export interface GetAccountsParams {
   type?: AccountType;
 }
 
+// Helper function to create query parameter string
+const createQueryParams = (params?: GetAccountsParams): string => {
+  if (!params) return '';
+  
+  const queryParams = new URLSearchParams();
+  
+  if (params.page) queryParams.append("page", params.page.toString());
+  if (params.pageSize) queryParams.append("pageSize", params.pageSize.toString());
+  if (params.search) queryParams.append("search", params.search);
+  if (params.status) queryParams.append("status", params.status);
+  if (params.department) queryParams.append("department", params.department);
+  
+  const queryString = queryParams.toString();
+  return queryString ? `?${queryString}` : '';
+};
+
 // API functions (these will be used with the useFetchWithMsal hook)
 export const api = {
   // Standard accounts
-  getStandardAccounts: (params?: GetAccountsParams) => {
-    const queryParams = new URLSearchParams();
-    
-    if (params) {
-      if (params.page) queryParams.append("page", params.page.toString());
-      if (params.pageSize) queryParams.append("pageSize", params.pageSize.toString());
-      if (params.search) queryParams.append("search", params.search);
-      if (params.status) queryParams.append("status", params.status);
-      if (params.department) queryParams.append("department", params.department);
-    }
-    
-    const url = `${endpoints.standardAccounts}?${queryParams.toString()}`;
-    return { url };
+  getStandardAccounts: (params?: GetAccountsParams): RequestConfig => {
+    const queryString = createQueryParams(params);
+    return { 
+      url: `${endpoints.standardAccounts}${queryString}` 
+    };
   },
   
   // Unix accounts
-  getUnixAccounts: (params?: GetAccountsParams) => {
-    const queryParams = new URLSearchParams();
-    
-    if (params) {
-      if (params.page) queryParams.append("page", params.page.toString());
-      if (params.pageSize) queryParams.append("pageSize", params.pageSize.toString());
-      if (params.search) queryParams.append("search", params.search);
-      if (params.status) queryParams.append("status", params.status);
-      if (params.department) queryParams.append("department", params.department);
-    }
-    
-    const url = `${endpoints.unixAccounts}?${queryParams.toString()}`;
-    return { url };
+  getUnixAccounts: (params?: GetAccountsParams): RequestConfig => {
+    const queryString = createQueryParams(params);
+    return { 
+      url: `${endpoints.unixAccounts}${queryString}` 
+    };
   },
   
   // Get account by ID
-  getAccount: (id: string) => {
-    return { url: endpoints.account(id) };
+  getAccount: (id: string): RequestConfig => {
+    return { 
+      url: endpoints.account(id) 
+    };
   },
   
   // Reset password
-  resetPassword: (id: string) => {
+  resetPassword: (id: string): RequestConfig => {
     return {
       url: endpoints.resetPassword(id),
       method: "POST"
@@ -73,7 +76,7 @@ export const api = {
   },
   
   // Lock account
-  lockAccount: (id: string) => {
+  lockAccount: (id: string): RequestConfig => {
     return {
       url: endpoints.lockAccount(id),
       method: "POST"
@@ -81,7 +84,7 @@ export const api = {
   },
   
   // Unlock account
-  unlockAccount: (id: string) => {
+  unlockAccount: (id: string): RequestConfig => {
     return {
       url: endpoints.unlockAccount(id),
       method: "POST"
@@ -89,12 +92,16 @@ export const api = {
   },
   
   // Get departments for dropdown
-  getDepartments: () => {
-    return { url: endpoints.departments };
+  getDepartments: (): RequestConfig => {
+    return { 
+      url: endpoints.departments 
+    };
   },
   
   // Get account types for dropdown
-  getAccountTypes: () => {
-    return { url: endpoints.accountTypes };
+  getAccountTypes: (): RequestConfig => {
+    return { 
+      url: endpoints.accountTypes 
+    };
   }
 };
