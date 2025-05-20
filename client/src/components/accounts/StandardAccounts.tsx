@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
-import { useFetchWithMsal } from "@/hooks/useFetchWithMsal";
+import { useEffect } from "react";
+import { useMsalAuthentication } from "@azure/msal-react";
+import { InteractionType } from "@azure/msal-browser";
 import { api } from "@/lib/api";
 import { protectedResources } from "@/lib/msal";
 import { 
-  PaginatedResponse, 
   StandardAccount, 
   AccountFilterOptions
 } from "@/types/account";
@@ -12,44 +12,92 @@ import AccountCard from "./AccountCard";
 import Pagination from "./Pagination";
 import { LoadingOverlay } from "@/components/ui/LoadingOverlay";
 import { ErrorNotification } from "@/components/ui/ErrorNotification";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { 
+  fetchStandardAccountsThunk, 
+  setCurrentPage, 
+  setFilterOptions 
+} from "@/store/accountsSlice";
 
 export default function StandardAccounts() {
-  // Filter & pagination state
-  const [filterOptions, setFilterOptions] = useState<AccountFilterOptions>({
-    search: "",
-    status: "",
-    department: ""
-  });
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
-
-  // Build API request
-  const request = api.getStandardAccounts({
-    page: currentPage,
-    pageSize,
-    search: filterOptions.search,
-    status: filterOptions.status,
-    department: filterOptions.department
-  });
+  const dispatch = useAppDispatch();
   
-  // Fetch data with MSAL authentication
+  // Get state from Redux store
   const { 
     data, 
-    error, 
     loading, 
-    refetch 
-  } = useFetchWithMsal<PaginatedResponse<StandardAccount>>(
-    request, 
-    { 
-      dependencies: [currentPage, filterOptions],
-      scopes: protectedResources.PWMAPI.scopes
-    }
+    error 
+  } = useAppSelector(state => state.accounts.standardAccounts);
+  const currentPage = useAppSelector(state => state.accounts.currentPage);
+  const pageSize = useAppSelector(state => state.accounts.pageSize);
+  const filterOptions = useAppSelector(state => state.accounts.filterOptions);
+
+  // Get access token using MSAL
+  const { result, acquireToken } = useMsalAuthentication(
+    InteractionType.Silent,
+    { scopes: protectedResources.PWMAPI.scopes }
   );
+
+  // Fetch data when component mounts or dependencies change
+  useEffect(() => {
+    const fetchData = async () => {
+      // Make sure we have a token
+      let accessToken: string;
+      
+      if (!result?.accessToken) {
+        const authResult = await acquireToken();
+        if (!authResult?.accessToken) {
+          console.error("Failed to acquire token");
+          return;
+        }
+        accessToken = authResult.accessToken;
+      } else {
+        accessToken = result.accessToken;
+      }
+
+      // Dispatch the thunk to fetch data
+      dispatch(fetchStandardAccountsThunk({
+        page: currentPage,
+        pageSize,
+        filterOptions,
+        accessToken
+      }));
+    };
+
+    fetchData();
+  }, [dispatch, currentPage, pageSize, filterOptions, result, acquireToken]);
 
   // Handler for filter changes
   const handleFilterChange = (newFilters: AccountFilterOptions) => {
-    setFilterOptions(newFilters);
-    setCurrentPage(1); // Reset to first page when filters change
+    dispatch(setFilterOptions(newFilters));
+    dispatch(setCurrentPage(1)); // Reset to first page when filters change
+  };
+
+  // Handler for page changes
+  const handlePageChange = (page: number) => {
+    dispatch(setCurrentPage(page));
+  };
+
+  // Function to retry data fetching
+  const handleRetry = async () => {
+    if (result?.accessToken) {
+      dispatch(fetchStandardAccountsThunk({
+        page: currentPage,
+        pageSize,
+        filterOptions,
+        accessToken: result.accessToken
+      }));
+    } else {
+      const authResult = await acquireToken();
+      if (authResult?.accessToken) {
+        dispatch(fetchStandardAccountsThunk({
+          page: currentPage,
+          pageSize,
+          filterOptions,
+          accessToken: authResult.accessToken
+        }));
+      }
+    }
   };
 
   // Account actions
@@ -70,20 +118,40 @@ export default function StandardAccounts() {
 
   const handleLockUnlock = async (id: string, isLocked: boolean) => {
     try {
+      let accessToken: string;
+      
+      if (!result?.accessToken) {
+        const authResult = await acquireToken();
+        if (!authResult?.accessToken) {
+          throw new Error("Failed to acquire access token");
+        }
+        accessToken = authResult.accessToken;
+      } else {
+        accessToken = result.accessToken;
+      }
+
       if (isLocked) {
         const unlockRequest = api.unlockAccount(id);
-        const { error } = await useFetchWithMsal(unlockRequest, { 
-          scopes: protectedResources.PWMAPI.scopes 
+        await fetch(unlockRequest.url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          }
         });
-        if (error) throw error;
       } else {
         const lockRequest = api.lockAccount(id);
-        const { error } = await useFetchWithMsal(lockRequest, { 
-          scopes: protectedResources.PWMAPI.scopes 
+        await fetch(lockRequest.url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          }
         });
-        if (error) throw error;
       }
-      refetch();
+      
+      // Refresh data after lock/unlock
+      handleRetry();
     } catch (error) {
       console.error("Error toggling account lock status:", error);
     }
@@ -104,8 +172,8 @@ export default function StandardAccounts() {
       {error && (
         <ErrorNotification 
           title="Error Fetching Accounts" 
-          message={error.message} 
-          onRetry={refetch} 
+          message={error} 
+          onRetry={handleRetry} 
         />
       )}
       
@@ -113,7 +181,7 @@ export default function StandardAccounts() {
       {data && data.items.length > 0 ? (
         <>
           <div className="space-y-4">
-            {data.items.map((account) => (
+            {data.items.map((account: StandardAccount) => (
               <AccountCard
                 key={account.id}
                 account={account}
@@ -130,7 +198,7 @@ export default function StandardAccounts() {
             <Pagination
               currentPage={currentPage}
               totalPages={data.totalPages}
-              onPageChange={setCurrentPage}
+              onPageChange={handlePageChange}
               totalItems={data.totalCount}
               pageSize={pageSize}
             />
